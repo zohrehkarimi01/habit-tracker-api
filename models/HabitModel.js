@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
-const { compareDates } = require('../utils/date');
+const { isValidDate, compareDateStrings } = require('../utils/date');
 
-// name, photo, email, password, passeordConfirm
 const habitSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -17,7 +16,7 @@ const habitSchema = new mongoose.Schema({
     required: [true, "Please enter habit's category"],
     enum: {
       values: ['Study', 'Work', 'Health', 'Entertainment', 'Social', 'Other'],
-      message: 'Entered category is not valid!',
+      message: 'Entered category is not valid',
     },
   },
   type: {
@@ -25,22 +24,22 @@ const habitSchema = new mongoose.Schema({
     required: [true, "Please enter habit's type"],
     enum: {
       values: ['boolean', 'numeric'],
-      message: "Habit's type should be either 'boolean' or 'numeric'!",
+      message: "Habit's type should be either 'boolean' or 'numeric'",
     },
-    immutable: true
+    immutable: true,
   },
   /** specific to numeric habits **/
   goalNumber: {
     type: Number,
     required: isHabitNumeric,
-    min: [1, 'Minimum valid value for goal number is 1!'],
+    min: [1, 'Minimum valid value for goal number is 1'],
   },
   goalMeasure: {
     type: String,
     enum: {
       // ['>=', '=', '<'],
       values: ['at-least', 'exactly', 'less-than'],
-      message: 'Entered goalMeasure is not valid!',
+      message: 'Entered goalMeasure is not valid',
     },
     required: isHabitNumeric,
   },
@@ -53,7 +52,7 @@ const habitSchema = new mongoose.Schema({
     type: String,
     enum: {
       values: ['every-day', 'days-per-week', 'specific-days-of-week'],
-      message: 'Entered habit frequency is not valid!',
+      message: 'Entered habit frequency is not valid',
     },
     required: [true, "Please enter habit's frequency"],
   },
@@ -71,16 +70,26 @@ const habitSchema = new mongoose.Schema({
       function (val) {
         return val.length > 0 && val.length < 7;
       },
-      'Please enter at least one day of week for habit.',
+      'Please enter at least one day of week for habit',
     ],
   },
   startDate: {
-    type: Date,
+    type: String,
     required: [true, "Please enter habit's start date"],
+    validate: [isValidDate, 'Entered startDate is not a valid date'],
   },
   endDate: {
-    type: Date,
-    validate: [isEndDateValid, 'End date must be after start date.'],
+    type: String,
+    validate: [
+      {
+        validator: isValidDate,
+        message: 'Entered endDate is not a valid date',
+      },
+      {
+        validator: isEndDateAfterStartDate,
+        message: 'endDate must be after startDate',
+      },
+    ],
   },
   reminder: {
     type: {
@@ -103,11 +112,8 @@ function isHabitNumeric() {
   return this.type === 'numeric';
 }
 
-function isEndDateValid(endDate) {
-  // check that endDate is after startDate
-  const startDate = new Date(this.startDate);
-  startDate.setHours(startDate.getHours() + 48);
-  return compareDates(startDate, endDate) === -1;
+function isEndDateAfterStartDate(endDate) {
+  return compareDateStrings(endDate, this.startDate) === 1;
 }
 
 /** MIDDLEWARES **/
