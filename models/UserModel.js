@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcryptjs');
 
-// name, photo, email, password, passeordConfirm
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -110,8 +109,6 @@ userSchema.methods.createPasswordResetToken = function () {
     .createHash('sha256') // algorithm of hashing
     .update(resetToken) // data(token) to encrypt
     .digest('hex');
-
-  console.log({ resetToken }, this.passwordResetToken);
 
   // reset token expires after 10 minutes
   this.passwordResetExpires = Date.now() + 10 * 60 * 1000;

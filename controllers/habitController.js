@@ -1,5 +1,4 @@
 const Habit = require('../models/HabitModel');
-const User = require('../models/UserModel');
 const APIFeatures = require('../utils/apiFeatures');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
