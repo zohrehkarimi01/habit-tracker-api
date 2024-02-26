@@ -19,7 +19,30 @@ function compareDateStrings(dateStr1, dateStr2) {
     : -1;
 }
 
+function getDayOfWeek(dateStr) {
+  const date = new Date(dateStr);
+  switch (date.getUTCDay()) {
+    case 0:
+      return 'Sun';
+    case 1:
+      return 'Mon';
+    case 2:
+      return 'Tue';
+    case 3:
+      return 'Wed';
+    case 4:
+      return 'Thu';
+    case 5:
+      return 'Fri';
+    case 6:
+      return 'Sat';
+    default:
+      return undefined;
+  }
+}
+
 module.exports = {
   isValidDate,
   compareDateStrings,
+  getDayOfWeek,
 };
