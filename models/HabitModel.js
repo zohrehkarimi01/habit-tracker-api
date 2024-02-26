@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
-const { isValidDate, compareDateStrings } = require('../utils/date');
+const Log = require('./LogModel');
+const {
+  isValidDate,
+  compareDateStrings,
+  getDayOfWeek,
+} = require('../utils/date');
 
 const habitSchema = new mongoose.Schema({
   userId: {
@@ -31,7 +36,7 @@ const habitSchema = new mongoose.Schema({
   /** specific to numeric habits **/
   goalNumber: {
     type: Number,
-    required: isHabitNumeric,
+    required: [isHabitNumeric, "Please enter habit's daily goalNumber"],
     min: [1, 'Minimum valid value for goal number is 1'],
   },
   goalMeasure: {
@@ -41,11 +46,11 @@ const habitSchema = new mongoose.Schema({
       values: ['at-least', 'exactly', 'less-than'],
       message: 'Entered goalMeasure is not valid',
     },
-    required: isHabitNumeric,
+    required: [isHabitNumeric, "Please enter habit's goalMeasure"],
   },
   goalUnit: {
     type: String,
-    required: isHabitNumeric,
+    required: [isHabitNumeric, "Please enter habit's goalUnit"],
   },
   /**/
   frequency: {
@@ -58,19 +63,35 @@ const habitSchema = new mongoose.Schema({
   },
   daysPerWeek: {
     type: Number,
-    required: isDaysPerWeekRequired,
+    required: [
+      isDaysPerWeekRequired,
+      'Please enter number of days per week that habit should be done',
+    ],
+    min: [1, 'Minimum valid value for daysPerWeek is 1'],
+    max: [6, 'Maximum valid value for daysPerWeek is 6'],
   },
   daysOfWeek: {
     type: [
       { type: String, enum: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'] },
     ],
     default: undefined,
-    required: isDaysOfWeekRequired,
+    required: [
+      isDaysOfWeekRequired,
+      'Please enter list of week days that habit should be done',
+    ],
     validate: [
-      function (val) {
-        return val.length > 0 && val.length < 7;
+      {
+        validator: function (val) {
+          return new Set(val).size === val.length;
+        },
+        message: 'Entered days of week has duplicate values',
       },
-      'Please enter at least one day of week for habit',
+      {
+        validator: function (val) {
+          return val.length > 0 && val.length < 7;
+        },
+        message: 'Please enter between one to six days of week for this habit',
+      },
     ],
   },
   startDate: {
@@ -93,8 +114,16 @@ const habitSchema = new mongoose.Schema({
   },
   reminder: {
     type: {
-      hour: Number,
-      minute: Number,
+      hour: {
+        type: Number,
+        min: [0, 'Entered value for reminder hour is not valid'],
+        max: [23, 'Entered value for reminder hour is not valid'],
+      },
+      minute: {
+        type: Number,
+        min: [0, 'Entered value for reminder minute is not valid'],
+        max: [59, 'Entered value for reminder minute is not valid'],
+      },
     },
   },
 });
@@ -116,16 +145,14 @@ function isEndDateAfterStartDate(endDate) {
   return compareDateStrings(endDate, this.startDate) === 1;
 }
 
-/** MIDDLEWARES **/
+/** OPERATIONAL MIDDLEWARES **/
 
 // If habit is boolean, delete numeric related fields
 habitSchema.pre('save', function (next) {
-  if (this.isNew || this.isModified('type')) {
-    if (this.type === 'boolean') {
-      this.goalNumber = undefined;
-      this.goalMeasure = undefined;
-      this.goalUnit = undefined;
-    }
+  if (this.isNew && this.type === 'boolean') {
+    this.goalNumber = undefined;
+    this.goalMeasure = undefined;
+    this.goalUnit = undefined;
   }
   next();
 });
@@ -141,6 +168,47 @@ habitSchema.pre('save', function (next) {
       this.daysPerWeek = undefined;
   }
   next();
+});
+
+// If habit startDate is updated, delete logs before startDate
+habitSchema.pre('save', { document: true }, async function (next) {
+  if (this.isModified('startDate')) {
+    const { _id: habitId, startDate } = this;
+    next();
+    await Log.deleteMany({ habitId, date: { $lt: startDate } });
+  } else next();
+});
+
+// If habit endDate is updated, delete logs after endDate
+habitSchema.pre('save', { document: true }, async function (next) {
+  if (this.endDate && this.isModified('endDate')) {
+    const { _id: habitId, endDate } = this;
+    next();
+    await Log.deleteMany({ habitId, date: { $gt: endDate } });
+  } else next();
+});
+
+// If frequency is updated to specific-days-of-week or daysOfWeek array is modified,
+// delete irrelevant logs
+habitSchema.pre('save', { document: true }, async function (next) {
+  if (this.daysOfWeek && this.isModified('daysOfWeek')) {
+    const habitId = this._id;
+    const daysOfWeek = [...this.daysOfWeek];
+    next();
+
+    const logs = await Log.find({ habitId });
+
+    for (const log of logs)
+      if (!daysOfWeek.includes(getDayOfWeek(log.date))) await log.deleteOne();
+  } else next();
+});
+
+// If habit is deleted, delete all its logs
+habitSchema.pre('deleteOne', { document: true }, async function (next) {
+  const habitId = this._id.toString();
+  next();
+  const results = await Log.deleteMany({ habitId });
+  console.log(results);
 });
 
 const Habit = mongoose.model('Habit', habitSchema);
