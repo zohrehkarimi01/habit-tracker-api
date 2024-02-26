@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const Habit = require('./HabitModel');
 
 const AppError = require('../utils/appError');
 const {
@@ -32,6 +31,9 @@ const logSchema = new mongoose.Schema({
 
 // VALIDATION MIDDLEWARE
 logSchema.pre('save', async function (next, options) {
+  // use mongoose.model('MODELNAME') rather than requiring the model
+  // in order to avoid circular dependency
+  const Habit = mongoose.model('Habit');
   // fetch habit document
   const habit = await Habit.findById(this.habitId);
   // 1) check habitId is valid
