@@ -39,15 +39,6 @@ const habitSchema = new mongoose.Schema({
     required: [isHabitNumeric, "Please enter habit's daily goalNumber"],
     min: [1, 'Minimum valid value for goal number is 1'],
   },
-  goalMeasure: {
-    type: String,
-    enum: {
-      // ['>=', '=', '<'],
-      values: ['at-least', 'exactly'],
-      message: 'Entered goalMeasure is not valid',
-    },
-    required: [isHabitNumeric, "Please enter habit's goalMeasure"],
-  },
   goalUnit: {
     type: String,
     required: [isHabitNumeric, "Please enter habit's goalUnit"],
@@ -151,7 +142,6 @@ function isEndDateAfterStartDate(endDate) {
 habitSchema.pre('save', function (next) {
   if (this.isNew && this.type === 'boolean') {
     this.goalNumber = undefined;
-    this.goalMeasure = undefined;
     this.goalUnit = undefined;
   }
   next();
@@ -214,9 +204,8 @@ habitSchema.pre('deleteOne', { document: true }, async function (next) {
 habitSchema.methods.getHabitStats = function (start, end) {
   const query = { habitId: this._id, date: { $gte: start, $lte: end } };
   const goal = this.goalNumber || 1;
-  if (this.goalMeasure === 'exactly') query.value = goal;
-  else query.value = { $gte: goal };
-  
+  query.value = { $gte: goal };
+
   return Log.countDocuments(query);
 };
 
