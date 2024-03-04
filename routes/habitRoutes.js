@@ -5,6 +5,10 @@ const authController = require('../controllers/authController');
 const router = express.Router();
 
 router
+  .route('/habit-stats')
+  .get(authController.protect, habitController.getHabitStatsPerPeriod);
+
+router
   .route('/')
   .post(authController.protect, habitController.createHabit)
   .get(authController.protect, habitController.getHabits);

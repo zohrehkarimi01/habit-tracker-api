@@ -43,7 +43,7 @@ const habitSchema = new mongoose.Schema({
     type: String,
     enum: {
       // ['>=', '=', '<'],
-      values: ['at-least', 'exactly', 'less-than'],
+      values: ['at-least', 'exactly'],
       message: 'Entered goalMeasure is not valid',
     },
     required: [isHabitNumeric, "Please enter habit's goalMeasure"],
@@ -210,6 +210,15 @@ habitSchema.pre('deleteOne', { document: true }, async function (next) {
   const results = await Log.deleteMany({ habitId });
   console.log(results);
 });
+
+habitSchema.methods.getHabitStats = function (start, end) {
+  const query = { habitId: this._id, date: { $gte: start, $lte: end } };
+  const goal = this.goalNumber || 1;
+  if (this.goalMeasure === 'exactly') query.value = goal;
+  else query.value = { $gte: goal };
+  
+  return Log.countDocuments(query);
+};
 
 const Habit = mongoose.model('Habit', habitSchema);
 

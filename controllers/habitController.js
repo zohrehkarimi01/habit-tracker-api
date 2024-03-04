@@ -1,4 +1,5 @@
 const Habit = require('../models/HabitModel');
+const Log = require('../models/LogModel');
 const APIFeatures = require('../utils/apiFeatures');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
@@ -48,6 +49,29 @@ exports.getHabits = catchAsync(async (req, res, next) => {
     results: habits.length,
     data: {
       habits,
+    },
+  });
+});
+
+exports.getHabitStatsPerPeriod = catchAsync(async (req, res, next) => {
+  const { start, end } = req.query;
+  const habits = await Habit.find({
+    userId: req.user._id,
+    startDate: { $lte: end },
+    $or: [{ endDate: { $gte: start } }, { endDate: { $exists: false } }],
+  });
+  const stats = {};
+
+  for (const habit of habits) {
+    const results = await habit.getHabitStats(start, end);
+    stats[habit._id] = results;
+  }
+
+  // send response
+  res.status(200).json({
+    status: 'success',
+    data: {
+      stats,
     },
   });
 });
