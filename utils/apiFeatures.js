@@ -2,7 +2,6 @@ class APIFeatures {
   constructor(query, queryString) {
     this.query = query;
     this.queryString = queryString;
-    console.log('queryString:', queryString);
   }
 
   filter() {
@@ -31,7 +30,8 @@ class APIFeatures {
 
   limitFields() {
     if (this.queryString.fields) {
-      const fields = this.queryString.fields.split(',').join(' ');
+      let fields = this.queryString.fields.split(',').join(' ');
+      if (!this.queryString.fields.includes('_id')) fields += ' -_id'; // exclude _id
       this.query = this.query.select(fields); // Including given fields
     } else {
       this.query = this.query.select('-__v'); // Excluding __v field
