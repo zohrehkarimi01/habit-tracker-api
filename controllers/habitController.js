@@ -55,11 +55,18 @@ exports.getHabits = catchAsync(async (req, res, next) => {
 
 exports.getHabitStatsPerPeriod = catchAsync(async (req, res, next) => {
   const { start, end } = req.query;
-  const habits = await Habit.find({
+
+  const query = {
+    ...req.query,
     userId: req.user._id,
     startDate: { $lte: end },
     $or: [{ endDate: { $gte: start } }, { endDate: { $exists: false } }],
-  });
+  };
+
+  delete query.start;
+  delete query.end;
+
+  const habits = await Habit.find(query);
   const stats = {};
 
   for (const habit of habits) {
