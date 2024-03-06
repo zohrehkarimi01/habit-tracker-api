@@ -106,3 +106,28 @@ exports.deleteLog = catchAsync(async (req, res, next) => {
     data: null,
   });
 });
+
+exports.deleteLogByQuery = catchAsync(async (req, res, next) => {
+  const { habitId, date } = req.query;
+  console.log('habitId:', habitId);
+  console.log('date:', date);
+  // TODO: check habitId and date are valid
+  const log = await Log.findOne({ habitId, date });
+  // check log exists
+  if (!log) {
+    return next(new AppError('No log was found with this info', 404));
+  }
+  // check user only has access to her own logs
+  const { userId } = await Habit.findById(log.habitId).select('userId');
+  if (!userId.equals(req.user._id))
+    return next(
+      new AppError("You don't have permission to delete this log", 403)
+    );
+  // delete log
+  await log.deleteOne();
+  // send response
+  res.status(204).json({
+    status: 'success',
+    data: null,
+  });
+});

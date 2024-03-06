@@ -7,7 +7,8 @@ const router = express.Router();
 router
   .route('/')
   .post(authController.protect, logController.createLog)
-  .get(authController.protect, logController.getLogs);
+  .get(authController.protect, logController.getLogs)
+  .delete(authController.protect, logController.deleteLogByQuery);
 
 router
   .route('/:id')
