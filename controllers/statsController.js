@@ -237,6 +237,64 @@ const calculateDailySuccessStats = async (habit, userDate) => {
   return { streak, bestStreak, success, fail, pending, total, habitScore };
 };
 
+const analyseLogsByWeek = async (habit, calendarType, endDate) => {
+  const dailyGoal = habit.type === 'boolean' ? 1 : habit.goalNumber;
+  const dateField = calendarType === 'persian' ? 'datePersian' : 'date';
+
+  const logs = await Log.find({
+    habitId: habit._id,
+    value: { $gte: dailyGoal },
+    [dateField]: {
+      $lte: endDate.format('YYYY-MM-DD'),
+    },
+  })
+    .sort({ [dateField]: 1 }) // old to new
+    .select(`-_id ${dateField}`)
+    .lean();
+
+  if (!logs.length) return { accumulatedScore: 0, completeWeeks: [] };
+
+  const weeklyGoal = habit.daysPerWeek;
+  const completeWeeks = [];
+  let score = 0;
+
+  const endOfWeek = cloneDateObject(endDate);
+  endOfWeek.setDate(logs[0][dateField]);
+  const currentDate = cloneDateObject(endOfWeek);
+  endOfWeek.toLastOfWeek();
+  let endOfWeekStr = endOfWeek.format('YYYY-MM-DD');
+
+  let count = 0;
+  for (let i = 0, len = logs.length; i < len; i++) {
+    currentDate.setDate(logs[i][dateField]);
+    if (isAfter(endOfWeek, currentDate)) {
+      if (count >= weeklyGoal) {
+        completeWeeks.push(endOfWeekStr);
+        score += weeklyGoal;
+      } else {
+        score += count;
+      }
+      // change end of week
+      endOfWeek.setDate(logs[i][dateField]).toLastOfWeek();
+      endOfWeekStr = endOfWeek.format('YYYY-MM-DD');
+      count = 1;
+    } else {
+      count += 1;
+    }
+  }
+  // last iteration check
+  if (count >= weeklyGoal) {
+    completeWeeks.push(endOfWeekStr);
+    score += weeklyGoal;
+  } else {
+    score += count;
+  }
+
+  score /= weeklyGoal;
+
+  return { accumulatedScore: score, completeWeeks };
+};
+
 const calculateWeeklySuccessStats = async (habit, calendarType, userDate) => {
   const today = userDate
     ? getDateObject(userDate, calendarType)
@@ -248,161 +306,64 @@ const calculateWeeklySuccessStats = async (habit, calendarType, userDate) => {
   if (today.format('YYYY-MM-DD') <= endDate.format('YYYY-MM-DD'))
     endDate = today;
 
-  const weekStart = cloneDateObject(endDate).toFirstOfWeek();
-  // const weekStartFormatted = weekStart.format('YYYY-MM-DD');
-
   // if endDate is before startDate, no calculation needed
   if (isBefore(startDate, endDate)) {
     return {};
   }
 
-  const dailyGoal = habit.type === 'boolean' ? 1 : habit.goalNumber;
-  const weeklyGoal = habit.daysPerWeek;
+  const { completeWeeks, accumulatedScore } = await analyseLogsByWeek(
+    habit,
+    calendarType,
+    endDate
+  );
 
   /** calculate current streak and best streak **/
 
-  const date = calendarType === 'persian' ? 'persianDate' : 'date';
-
-  let query = {
-    
-  };
-
-  query[date] = {
-    $lte: endDate.format('YYYY-MM-DD'),
-  };
-
-  // Fetch successful logs
-  const logs = await Log.find({
-    habitId: habit._id,
-    value: { $gte: dailyGoal },
-  })
-    .sort({ [date]: -1 })
-    .select(`-_id ${date}`)
-    .lean();
-
-  const logsCount = logs.length;
-
   let streak = 0;
   let bestStreak = 0;
-  let completeWeeks = 0;
-  let habitScore = 0;
 
-  if (logsCount > 0) {
-    let i = 0;
-    let weekLogs = 0;
-    const currentDate = cloneDateObject(endDate);
-    // handle current week
-    // current week can break streak only if there are more
-    if (today === endDate) {
-      for (; i < logsCount; i++) {
-        currentDate.setDate(logs[i][date]);
-        if (isBefore(weekStart, currentDate)) {
-          if (weekLogs >= weeklyGoal) {
-            streak += 1;
-            completeWeeks += 1;
-            weekStart.subtract(7, 'day'); // go to previous week
-          } else {
-            if (weekLogs > 0) habitScore += weekLogs / weeklyGoal;
-            query = {
-              habitId: habit._id,
-              value: { $lt: dailyGoal },
-            };
-            query[date] = {
-              $gte: weekStart.format('YYYY-MM-DD'),
-              $lte: endDate.format('YYYY-MM-DD'),
-            };
-            const failedLogs = await Log.countDocuments(query);
-            if (failedLogs > 7 - weeklyGoal) {
-              streak = -1; // current streak breaks
-            } else {
-              weekStart.subtract(7, 'day'); // current week is ignored
-            }
-          }
-          weekLogs = 0;
-          break;
-        }
-        weekLogs += 1;
-      }
-      if (weekLogs >= weeklyGoal) {
-        streak += 1;
-        completeWeeks += 1;
-      }
-      weekLogs = 0;
-    }
-
-    // calculate current streak
-    if (streak !== -1) {
-      for (; i < logsCount; i++) {
-        currentDate.setDate(logs[i][date]);
-        if (isBefore(weekStart, currentDate)) {
-          if (weekLogs >= weeklyGoal) {
-            streak += 1;
-            completeWeeks += 1;
-            weekLogs = 0;
-            weekStart.subtract(7, 'day');
-            i--; // check this log again
-          } else {
-            if (weekLogs > 0) habitScore += weekLogs / weeklyGoal;
-            break;
-          }
-        } else {
-          weekLogs += 1;
-        }
-      }
-      if (weekLogs >= weeklyGoal) {
-        streak += 1;
-        completeWeeks += 1;
-      }
-      weekLogs = 0;
-      bestStreak = streak;
-    } else {
-      // current streak is zero
-      streak = 0;
-    }
-    if (i < logsCount) weekStart.setDate(logs[i].date).toFirstOfWeek();
-
-    // calculate best streak
+  if (completeWeeks.length) {
     let tempStreak = 0;
-    for (; i < logsCount; i++) {
-      currentDate.setDate(logs[i][date]);
-      if (isBefore(weekStart, currentDate)) {
-        if (weekLogs >= weeklyGoal) {
-          // streak continues
-          tempStreak += 1;
-          completeWeeks += 1;
-          weekStart.subtract(7, 'day');
-          weekLogs = 0;
-          i--; // check this log again
-        } else {
-          // streak breaks
-          bestStreak = Math.max(bestStreak, tempStreak);
-          tempStreak = 0;
-          if (weekLogs > 0) habitScore += weekLogs / weeklyGoal;
-          weekStart.setDate(logs[i].date).toFirstOfWeek();
-          weekLogs = 1;
-        }
+    const lastWeek = getDateObject(habit.startDate, calendarType);
+    lastWeek.toLastOfWeek().subtract(7, 'day'); // one week before startDate
+
+    const len = completeWeeks.length;
+    for (let i = 0; i < len; i++) {
+      lastWeek.add(7, 'day'); // go to next week
+      if (lastWeek.format('YYYY-MM-DD') === completeWeeks[i]) {
+        // streak continues
+        tempStreak += 1;
       } else {
-        weekLogs += 1;
+        // streak resets
+        bestStreak = Math.max(bestStreak, tempStreak);
+        lastWeek.setDate(completeWeeks[i]);
+        tempStreak = 1;
       }
     }
-    if (weekLogs >= weeklyGoal) {
-      tempStreak += 1;
-      completeWeeks += 1;
-    } else if (weekLogs > 0) {
-      habitScore += weekLogs / weeklyGoal;
-    }
+
+    // last iteration check
     bestStreak = Math.max(bestStreak, tempStreak);
+    const finalWeek = cloneDateObject(endDate).toLastOfWeek();
+    // calculate current streak
+    if (finalWeek.format('YYYY-MM-DD') === completeWeeks[len - 1]) {
+      streak = tempStreak;
+    } else if (today === endDate) {
+      finalWeek.subtract(7, 'day');
+      if (finalWeek.format('YYYY-MM-DD') === completeWeeks[len - 1])
+        streak = tempStreak;
+    }
   }
 
   /** calculate success/fail stats  **/
+
   const totalWeeks = calculateWeeksBetween(startDate, endDate);
-  const incompleteWeeks = totalWeeks - completeWeeks;
-  habitScore = (habitScore + completeWeeks) / Math.max(totalWeeks, 1);
+  const incompleteWeeks = totalWeeks - completeWeeks.length;
+  const habitScore = accumulatedScore / Math.max(totalWeeks, 1);
 
   return {
     streak,
     bestStreak,
-    completeWeeks,
+    completeWeeks: completeWeeks.length,
     incompleteWeeks,
     totalWeeks,
     habitScore,
