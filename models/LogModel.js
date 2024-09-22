@@ -5,6 +5,7 @@ const {
   isValidDate,
   compareDateStrings,
   getDayOfWeek,
+  getPersianDate,
 } = require('../utils/date');
 
 const logSchema = new mongoose.Schema({
@@ -24,6 +25,10 @@ const logSchema = new mongoose.Schema({
     required: [true, 'Please enter date of log'],
     validate: [isValidDate, 'Entered date is not valid'],
     immutable: true,
+  },
+  datePersian: {
+    type: String,
+    select: false,
   },
 });
 
@@ -77,6 +82,14 @@ logSchema.pre('save', async function (next, options) {
         400
       )
     );
+  next();
+});
+
+// add persian date to log
+logSchema.pre('save', function (next) {
+  if (this.isNew) {
+    this.datePersian = getPersianDate(this.date);
+  }
   next();
 });
 

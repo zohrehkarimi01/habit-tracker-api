@@ -1,12 +1,17 @@
 const express = require('express');
-const habitController = require('../controllers/habitController');
 const authController = require('../controllers/authController');
+const habitController = require('../controllers/habitController');
+const statsController = require('../controllers/statsController');
 
 const router = express.Router();
 
 router
   .route('/habit-stats')
   .get(authController.protect, habitController.getHabitStatsPerPeriod);
+
+router
+  .route('/habit-stats/:id')
+  .get(authController.protect, statsController.getHabitStats);
 
 router
   .route('/')

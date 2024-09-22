@@ -1,5 +1,4 @@
 const Habit = require('../models/HabitModel');
-const Log = require('../models/LogModel');
 const APIFeatures = require('../utils/apiFeatures');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
@@ -67,11 +66,16 @@ exports.getHabitStatsPerPeriod = catchAsync(async (req, res, next) => {
   delete query.end;
 
   const habits = await Habit.find(query);
+  const habitsCount = habits.length;
   const stats = {};
 
-  for (const habit of habits) {
-    const results = await habit.getHabitStats(start, end);
-    stats[habit._id] = results;
+  if (habitsCount > 0) {
+    const counts = await Promise.all(
+      habits.map((habit) => habit.getTimesCompleted(start, end))
+    );
+    for (let i = 0; i < habitsCount; i++) {
+      stats[habits[i]._id] = counts[i];
+    }
   }
 
   // send response

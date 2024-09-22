@@ -7,7 +7,7 @@ const catchAsync = require('../utils/catchAsync');
 exports.createLog = catchAsync(async (req, res, next) => {
   const { habitId, value, date } = req.body;
 
-  let log = await Log.findOne({ habitId, date });
+  let log = await Log.findOne({ habitId, date }).select('+datePersian');
   if (!log) {
     // create new log
     // Attention: first parameter should be an array to pass options as second parameter
@@ -72,7 +72,7 @@ exports.updateLog = catchAsync(async (req, res, next) => {
   const { value } = req.body;
   if (!value) return next(new AppError('Include a value to update log', 400));
   // find log
-  const log = await Log.findById(req.params.id);
+  const log = await Log.findById(req.params.id).select('+datePersian');
   // check log exists
   if (!log) return next(new AppError('No log was found with this id', 404));
   log.value = value;
@@ -109,8 +109,6 @@ exports.deleteLog = catchAsync(async (req, res, next) => {
 
 exports.deleteLogByQuery = catchAsync(async (req, res, next) => {
   const { habitId, date } = req.query;
-  console.log('habitId:', habitId);
-  console.log('date:', date);
   // TODO: check habitId and date are valid
   const log = await Log.findOne({ habitId, date });
   // check log exists

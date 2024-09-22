@@ -109,7 +109,7 @@ const habitSchema = new mongoose.Schema({
         message: 'Entered endDate is not a valid date',
       },
       {
-        validator: isEndDateAfterStartDate,
+        validator: isAfterStartDate,
         message: 'endDate must be after startDate',
       },
     ],
@@ -143,7 +143,7 @@ function isHabitNumeric() {
   return this.type === 'numeric';
 }
 
-function isEndDateAfterStartDate(endDate) {
+function isAfterStartDate(endDate) {
   return compareDateStrings(endDate, this.startDate) === 1;
 }
 
@@ -208,12 +208,18 @@ habitSchema.pre('save', { document: true }, async function (next) {
 habitSchema.pre('deleteOne', { document: true }, async function (next) {
   const habitId = this._id.toString();
   next();
-  const results = await Log.deleteMany({ habitId });
-  console.log(results);
+  await Log.deleteMany({ habitId });
 });
 
-habitSchema.methods.getHabitStats = function (start, end) {
-  const query = { habitId: this._id, date: { $gte: start, $lte: end } };
+habitSchema.methods.getTimesCompleted = function (
+  start,
+  end,
+  calendarType = 'gregorian'
+) {
+  const query = { habitId: this._id };
+  if (calendarType === 'persian')
+    query.datePersian = { $gte: start, $lte: end };
+  else query.date = { $gte: start, $lte: end };
   const goal = this.goalNumber || 1;
   query.value = { $gte: goal };
 
