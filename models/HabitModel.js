@@ -115,6 +115,7 @@ const habitSchema = new mongoose.Schema({
     ],
   },
   reminder: {
+    _id: false,
     type: {
       hour: {
         type: Number,
@@ -217,9 +218,11 @@ habitSchema.methods.getTimesCompleted = function (
   calendarType = 'gregorian'
 ) {
   const query = { habitId: this._id };
-  if (calendarType === 'persian')
-    query.datePersian = { $gte: start, $lte: end };
-  else query.date = { $gte: start, $lte: end };
+  if (start && end) {
+    if (calendarType === 'persian')
+      query.datePersian = { $gte: start, $lte: end };
+    else query.date = { $gte: start, $lte: end };
+  }
   const goal = this.goalNumber || 1;
   query.value = { $gte: goal };
 

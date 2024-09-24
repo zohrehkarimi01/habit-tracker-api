@@ -17,7 +17,7 @@ exports.createLog = catchAsync(async (req, res, next) => {
   } else {
     // update existing log
     log.value = value;
-    log.save({ userId: req.user._id });
+    await log.save({ userId: req.user._id });
   }
 
   res.status(201).json({

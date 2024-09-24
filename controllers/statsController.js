@@ -32,31 +32,30 @@ const calculateTimesCompleted = async (habit, calendarType, currentDate) => {
   } = getDateBorders(today);
 
   // Calculate counts for the current week, month, and year
-  const [weekCount, monthCount, yearCount] = await Promise.all([
+  const [weekCount, monthCount, yearCount, totalCount] = await Promise.all([
     habit.getTimesCompleted(startOfWeek, endOfWeek, calendarType),
     habit.getTimesCompleted(startOfMonth, endOfMonth, calendarType),
     habit.getTimesCompleted(startOfYear, endOfYear, calendarType),
+    habit.getTimesCompleted(undefined, undefined, calendarType),
   ]);
 
   return {
     thisWeek: weekCount,
     thisMonth: monthCount,
     thisYear: yearCount,
+    all: totalCount,
   };
 };
 
-const calculateMonthlyBreakdown = async (habit, calendarType) => {
-  // Success criteria based on habit type
-  const goalNumber = habit.type === 'boolean' ? 1 : habit.goalNumber;
+const calculateMonthlyBreakdown = async (habitId, calendarType) => {
   const dateField = calendarType === 'persian' ? '$datePersian' : '$date';
 
-  // Aggregation pipeline to get logs grouped by year and month
+  // Aggregation pipeline to sum of logs grouped by year and month
   const pipeline = [
     {
       $match: {
-        habitId: habit._id,
-        value: { $gte: goalNumber },
-        // date: { $gte: startOfYear, $lte: endOfYear },
+        habitId: habitId,
+        value: { $gte: 1 },
       },
     },
     {
@@ -75,7 +74,7 @@ const calculateMonthlyBreakdown = async (habit, calendarType) => {
           year: '$year',
           month: '$month',
         },
-        count: { $sum: 1 },
+        sumOfValues: { $sum: '$value' },
       },
     },
     {
@@ -89,7 +88,7 @@ const calculateMonthlyBreakdown = async (habit, calendarType) => {
     return {};
   }
 
-  // Transform the aggregation result into the desired format
+  // format aggregation result
   const formattedResult = aggregatedResult.reduce((acc, item) => {
     const year = parseInt(item._id.year);
     const month = parseInt(item._id.month);
@@ -98,7 +97,7 @@ const calculateMonthlyBreakdown = async (habit, calendarType) => {
       acc[year] = {};
     }
 
-    acc[year][month] = item.count;
+    acc[year][month] = item.sumOfValues;
     return acc;
   }, {});
 
@@ -116,7 +115,15 @@ const calculateDailySuccessStats = async (habit, userDate) => {
 
   // if endDate is before startDate, no calculation needed
   if (isBefore(startDate, endDate)) {
-    return { streak: 0, bestStreak: 0, success: 0, fail, pending, total, habitScore };
+    return {
+      streak: 0,
+      bestStreak: 0,
+      success: 0,
+      fail,
+      pending,
+      total,
+      habitScore,
+    };
   }
 
   const goalNumber = habit.type === 'boolean' ? 1 : habit.goalNumber;
@@ -395,7 +402,11 @@ exports.getHabitStats = catchAsync(async (req, res, next) => {
   }
 
   let stats = await calculateTimesCompleted(habit, calendarType, userDate);
-  stats.monthlyBreakdown = await calculateMonthlyBreakdown(habit, calendarType);
+  stats.monthlyBreakdown = await calculateMonthlyBreakdown(
+    habit._id,
+    calendarType
+  );
+  if (habit.type === 'numeric') stats.unit = habit.goalUnit;
 
   if (habit.frequency === 'days-per-week') {
     stats.type = 'weekly';
