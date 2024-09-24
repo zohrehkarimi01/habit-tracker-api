@@ -116,7 +116,7 @@ const calculateDailySuccessStats = async (habit, userDate) => {
 
   // if endDate is before startDate, no calculation needed
   if (isBefore(startDate, endDate)) {
-    return {};
+    return { streak: 0, bestStreak: 0, success: 0, fail, pending, total, habitScore };
   }
 
   const goalNumber = habit.type === 'boolean' ? 1 : habit.goalNumber;
@@ -145,6 +145,7 @@ const calculateDailySuccessStats = async (habit, userDate) => {
   let streak = 0;
   let bestStreak = 0;
 
+  let todayLogPending = false;
   if (logsCount > 0) {
     let shouldCalculateStreak = true;
     // handle today log
@@ -161,7 +162,12 @@ const calculateDailySuccessStats = async (habit, userDate) => {
       if (!todayLog) {
         currentDate.subtract(1, 'day');
       } else if (todayLog.value < goalNumber) {
-        shouldCalculateStreak = false; // streak is zero
+        if (habit.type === 'boolean')
+          shouldCalculateStreak = false; // streak is zero
+        else {
+          todayLogPending = true;
+          currentDate.subtract(1, 'day');
+        }
       }
     }
 
@@ -216,14 +222,15 @@ const calculateDailySuccessStats = async (habit, userDate) => {
   /** calculate success/fail stats **/
 
   const success = logsCount;
-  const fail = await Log.countDocuments({
+  let fail = await Log.countDocuments({
     habitId: habit._id,
     value: { $lt: goalNumber },
     date: {
       $lte: endDate.format('YYYY-MM-DD'),
     },
   });
-  let total =
+  if (todayLogPending) fail -= 1;
+  const total =
     habit.frequency === 'specific-days-of-week'
       ? calculateWeekDaysBetween(
           habit.startDate,
@@ -232,7 +239,7 @@ const calculateDailySuccessStats = async (habit, userDate) => {
         )
       : calculateDaysBetween(habit.startDate, endDate.format('YYYY-MM-DD'));
   const pending = total - success - fail;
-  const habitScore = success / Math.max(1, total);
+  const habitScore = Math.floor((success * 100) / Math.max(1, total));
 
   return { streak, bestStreak, success, fail, pending, total, habitScore };
 };
@@ -358,7 +365,9 @@ const calculateWeeklySuccessStats = async (habit, calendarType, userDate) => {
 
   const totalWeeks = calculateWeeksBetween(startDate, endDate);
   const incompleteWeeks = totalWeeks - completeWeeks.length;
-  const habitScore = accumulatedScore / Math.max(totalWeeks, 1);
+  const habitScore = Math.floor(
+    (accumulatedScore * 100) / Math.max(totalWeeks, 1)
+  );
 
   return {
     streak,
@@ -373,32 +382,34 @@ const calculateWeeklySuccessStats = async (habit, calendarType, userDate) => {
 exports.getHabitStats = catchAsync(async (req, res, next) => {
   const habitId = req.params.id;
   const calendarType = req.query.calendar || 'gregorian';
-  const { currentDate } = req.query;
+  const userDate = req.query.date;
 
   const habit = await Habit.findById(habitId);
   if (!habit) {
     return next(new AppError('Habit not found', 404));
   }
 
-  // check currentDate is a valid date in format of YYYY-MM-DD
-  if (currentDate && !isValidDate(currentDate)) {
-    return next(new AppError('currentDate is not a valid date', 400));
+  // check userDate is a valid date in format of YYYY-MM-DD
+  if (userDate && !isValidDate(userDate)) {
+    return next(new AppError('userDate is not a valid date', 400));
   }
 
-  let stats = await calculateTimesCompleted(habit, calendarType, currentDate);
+  let stats = await calculateTimesCompleted(habit, calendarType, userDate);
   stats.monthlyBreakdown = await calculateMonthlyBreakdown(habit, calendarType);
 
   if (habit.frequency === 'days-per-week') {
+    stats.type = 'weekly';
     const weeklyStats = await calculateWeeklySuccessStats(
       habit,
       calendarType,
-      currentDate
+      userDate
     );
     for (let field in weeklyStats) {
       stats[field] = weeklyStats[field];
     }
   } else {
-    const dailyStats = await calculateDailySuccessStats(habit, currentDate);
+    stats.type = 'daily';
+    const dailyStats = await calculateDailySuccessStats(habit, userDate);
     for (let field in dailyStats) {
       stats[field] = dailyStats[field];
     }

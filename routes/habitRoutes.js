@@ -6,11 +6,11 @@ const statsController = require('../controllers/statsController');
 const router = express.Router();
 
 router
-  .route('/habit-stats')
-  .get(authController.protect, habitController.getHabitStatsPerPeriod);
+  .route('/times-completed')
+  .get(authController.protect, habitController.getTimesCompletedPerPeriod);
 
 router
-  .route('/habit-stats/:id')
+  .route('/stats/:id')
   .get(authController.protect, statsController.getHabitStats);
 
 router

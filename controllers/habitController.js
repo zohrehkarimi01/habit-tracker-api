@@ -52,7 +52,7 @@ exports.getHabits = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.getHabitStatsPerPeriod = catchAsync(async (req, res, next) => {
+exports.getTimesCompletedPerPeriod = catchAsync(async (req, res, next) => {
   const { start, end } = req.query;
 
   const query = {
