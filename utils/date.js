@@ -46,6 +46,43 @@ function getDayOfWeek(dateStr) {
 }
 
 /**
+ * get time diffrence between current time and given hour and minute
+ * @param {0-23} hour
+ * @param {0-59} minute
+ * @returns time difference in milliseconds
+ */
+function getTimeDifference(hour, minute) {
+  const now = new Date();
+  const targetTime = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    hour,
+    minute
+  );
+
+  return targetTime.getTime() - now.getTime();
+}
+
+/**
+ * get number of seconds untill the end of today
+ * @returns number
+ */
+function getSecondsTillEndOfDay() {
+  const now = new Date();
+  const endOfDay = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    23,
+    59,
+    59
+  );
+
+  return Math.ceil((endOfDay.getTime() - now.getTime()) / 1000);
+}
+
+/**
  * convert gregorian date to persian date
  * @param {String} dateStr date string
  * @returns {string} persian date string in YYYY-MM-DD format
@@ -86,6 +123,14 @@ function getToday(calendarType = 'gregorian') {
   date.setMillisecond(0);
 
   return date;
+}
+
+function getStartAndEndOfWeek(calendar) {
+  const today = getToday(calendar);
+  const startOfWeek = today.toFirstOfWeek().format('YYYY-MM-DD');
+  const endOfWeek = today.toLastOfWeek().format('YYYY-MM-DD');
+
+  return [startOfWeek, endOfWeek];
 }
 
 function getDateBorders(date) {
@@ -224,10 +269,13 @@ module.exports = {
   isValidDate,
   compareDateStrings,
   getDayOfWeek,
+  getTimeDifference,
+  getSecondsTillEndOfDay,
   getPersianDate,
   getDateObject,
   cloneDateObject,
   getToday,
+  getStartAndEndOfWeek,
   getDateBorders,
   calculateDaysBetween,
   calculateWeekDaysBetween,

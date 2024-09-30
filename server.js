@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
+const { CronJob } = require('cron');
 
 // loads environment variables from config.env file into process.env
 dotenv.config({ path: './config.env' });
@@ -15,6 +16,22 @@ const app = require('./app');
 // CONNECT TO LOCAL DATABASE
 mongoose.connect(process.env.DATABASE_LOCAL).then(() => {
   console.log('✅ DB connection successful');
+});
+
+CronJob.from({
+  cronTime: '0 0 0 * * *',
+  onTick: function () {
+    console.log('cron job: schedule habit reminders');
+    const Habit = mongoose.model('Habit');
+    Habit.find({ reminder: { $exists: true } }).then((habits) => {
+      const len = habits.length;
+      for (let i = 0; i < len; i++) {
+        habits[i].scheduleHabitReminder();
+      }
+    });
+  },
+  start: true,
+  timeZone: 'Asia/Tehran',
 });
 
 const port = process.env.PORT || 5000;

@@ -30,6 +30,7 @@ const createSendToken = (user, statusCode, res) => {
   res.status(statusCode).json({
     status: 'success',
     token,
+    expires: cookieOptions.expires,
     data: {
       User: user,
     },
@@ -96,6 +97,7 @@ exports.protect = catchAsync(async (req, res, next) => {
 
   // GRANT ACCESS TO PROTECTED ROUTE
   req.user = currentUser;
+  req.expires = new Date(decoded.exp * 1000);
   next();
 });
 

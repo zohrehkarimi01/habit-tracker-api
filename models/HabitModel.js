@@ -1,9 +1,14 @@
 const mongoose = require('mongoose');
+const User = require('./UserModel');
 const Log = require('./LogModel');
+const { sendHabitNotification } = require('../utils/notification');
 const {
   isValidDate,
   compareDateStrings,
   getDayOfWeek,
+  getTimeDifference,
+  getToday,
+  getStartAndEndOfWeek,
 } = require('../utils/date');
 
 const habitSchema = new mongoose.Schema({
@@ -115,7 +120,6 @@ const habitSchema = new mongoose.Schema({
     ],
   },
   reminder: {
-    _id: false,
     type: {
       hour: {
         type: Number,
@@ -148,6 +152,139 @@ function isAfterStartDate(endDate) {
   return compareDateStrings(endDate, this.startDate) === 1;
 }
 
+/*** METHODS ***/
+
+habitSchema.methods.getTimesCompleted = function (
+  start,
+  end,
+  calendarType = 'gregorian'
+) {
+  const query = { habitId: this._id };
+  if (start && end) {
+    if (calendarType === 'persian')
+      query.datePersian = { $gte: start, $lte: end };
+    else query.date = { $gte: start, $lte: end };
+  }
+  const goal = this.goalNumber || 1;
+  query.value = { $gte: goal };
+
+  return Log.countDocuments(query);
+};
+
+habitSchema.methods.shouldSendReminder = async function () {
+  const today = getToday();
+  const todayStr = today.format('YYYY-MM-DD');
+  // check today is between startDate and endDate
+  if (todayStr < this.startDate || (!!this.endDate && todayStr > this.endDate))
+    return false;
+  // check today is a valid weekday
+  if (
+    this.frequency === 'specific-days-of-week' &&
+    !this.daysOfWeek.includes(today.weekDay.shortName)
+  ) {
+    return false;
+  }
+  // check habit is already done
+  const dailyGoal = this.goalNumber || 1;
+  const successLog = await Log.findOne({
+    date: todayStr,
+    value: { $gte: dailyGoal },
+  });
+  if (successLog) return false;
+  // check if weekly goal is met already
+  if (this.frequency === 'days-per-week') {
+    const weeklyGoal = this.daysPerWeek;
+    const [start, end] = getStartAndEndOfWeek('gregorian');
+    const weekLogsCount = await this.getTimesCompleted(start, end, 'gregorian');
+    const [startPersian, endPersian] = getStartAndEndOfWeek('persian');
+    const persianWeekLogsCount = await this.getTimesCompleted(
+      startPersian,
+      endPersian,
+      'persian'
+    );
+    if (weekLogsCount >= weeklyGoal && persianWeekLogsCount >= weeklyGoal)
+      return false;
+    return {
+      gregorian: weekLogsCount < weeklyGoal,
+      persian: persianWeekLogsCount < weeklyGoal,
+    };
+  }
+  return { gregorian: true, persian: true };
+};
+
+habitSchema.methods.scheduleHabitReminder = async function () {
+  if (!this.reminder) return;
+  const { _id: habitId } = this;
+  const { _id: reminderId, hour, minute } = this.reminder;
+  console.log('reminder to schedule:', this.reminder);
+  if (!reminderId) return;
+  const timeDiff = getTimeDifference(hour, minute);
+  console.log(`seconds till notification: ${timeDiff / 1000}`);
+  if (timeDiff > 0) {
+    setTimeout(async () => {
+      try {
+        console.log('notification for habitId:', habitId);
+        const Habit = mongoose.model('Habit');
+        // find habit
+        const habit = await Habit.findById(habitId);
+        // check habit exists and reminder has not changed
+        if (!habit) {
+          console.log('habit does not exist');
+          return;
+        }
+        if (!reminderId.equals(habit.reminder?._id)) {
+          console.log('reminderId:', reminderId);
+          console.log('habit.reminder?._id:', habit.reminder?._id);
+          console.log('reminder has changed!');
+          return;
+        }
+        // find user
+        const user = await User.findById(habit.userId).select('+pushTokens');
+        // check there is any push token to send reminder to
+        const { pushTokens } = user;
+        if (!pushTokens && pushTokens.length === 0) {
+          console.log('user has no push token');
+          return;
+        }
+        // check if habit reminder should be sent for current date
+        const shouldRemindUser = await habit.shouldSendReminder();
+        console.log('shouldRemindUser: ', shouldRemindUser);
+        if (!shouldRemindUser) {
+          console.log('Habit should not send reminder');
+          return;
+        }
+        const time = new Date().getTime();
+        const filteredPushTokens = pushTokens.filter(
+          ({ calendar, expires }) =>
+            shouldRemindUser[calendar] && expires.getTime() > time
+        );
+        console.log('filteredTokens:', filteredPushTokens);
+        // send notifications
+        if (filteredPushTokens.length) {
+          console.log('sending notification in progress');
+          const invalidTokens = await sendHabitNotification(
+            filteredPushTokens,
+            habit
+          );
+          // exclude expired and invalid tokens
+          user.pushTokens = user.pushTokens.filter(
+            ({ token, expires }) =>
+              expires.getTime() > time && !invalidTokens.has(token)
+          );
+        } else {
+          // exclude expired tokens
+          user.pushTokens = user.pushTokens.filter(
+            ({ expires }) => expires.getTime() > time
+          );
+        }
+        await user.save();
+      } catch (e) {
+        console.log('error in sending reminders.\n', e);
+      }
+    }, timeDiff);
+  }
+};
+
 /** OPERATIONAL MIDDLEWARES **/
 
 // If habit is boolean, delete numeric related fields
@@ -173,7 +310,7 @@ habitSchema.pre('save', function (next) {
 });
 
 // If habit startDate is updated, delete logs before startDate
-habitSchema.pre('save', { document: true }, async function (next) {
+habitSchema.pre('save', async function (next) {
   if (this.isModified('startDate')) {
     const { _id: habitId, startDate } = this;
     next();
@@ -182,7 +319,7 @@ habitSchema.pre('save', { document: true }, async function (next) {
 });
 
 // If habit endDate is updated, delete logs after endDate
-habitSchema.pre('save', { document: true }, async function (next) {
+habitSchema.pre('save', async function (next) {
   if (this.endDate && this.isModified('endDate')) {
     const { _id: habitId, endDate } = this;
     next();
@@ -192,7 +329,7 @@ habitSchema.pre('save', { document: true }, async function (next) {
 
 // If frequency is updated to specific-days-of-week or daysOfWeek array is modified,
 // delete irrelevant logs
-habitSchema.pre('save', { document: true }, async function (next) {
+habitSchema.pre('save', async function (next) {
   if (this.daysOfWeek && this.isModified('daysOfWeek')) {
     const habitId = this._id;
     const daysOfWeek = [...this.daysOfWeek];
@@ -205,29 +342,22 @@ habitSchema.pre('save', { document: true }, async function (next) {
   } else next();
 });
 
+// If habit reminder is modified, schedule reminder
+habitSchema.pre('save', function (next) {
+  if (this.isNew || this.isModified('reminder')) {
+    if (this.reminder) {
+      this.scheduleHabitReminder();
+    }
+  }
+  next();
+});
+
 // If habit is deleted, delete all its logs
 habitSchema.pre('deleteOne', { document: true }, async function (next) {
   const habitId = this._id.toString();
   next();
   await Log.deleteMany({ habitId });
 });
-
-habitSchema.methods.getTimesCompleted = function (
-  start,
-  end,
-  calendarType = 'gregorian'
-) {
-  const query = { habitId: this._id };
-  if (start && end) {
-    if (calendarType === 'persian')
-      query.datePersian = { $gte: start, $lte: end };
-    else query.date = { $gte: start, $lte: end };
-  }
-  const goal = this.goalNumber || 1;
-  query.value = { $gte: goal };
-
-  return Log.countDocuments(query);
-};
 
 const Habit = mongoose.model('Habit', habitSchema);
 

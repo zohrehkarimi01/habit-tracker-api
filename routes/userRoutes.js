@@ -1,6 +1,7 @@
 const express = require('express');
 const userController = require('../controllers/userController');
 const authController = require('../controllers/authController');
+const notificationController = require('../controllers/notificationController');
 
 const router = express.Router();
 
@@ -20,14 +21,14 @@ router
   .route('/delete-me')
   .delete(authController.protect, userController.deleteMe);
 
+/* notification (push token) routes */
+
 router
-  .route('/')
-  .get(userController.getAllUsers)
-  .post(userController.createUser);
+  .route('/push-tokens')
+  .post(authController.protect, notificationController.registerPushToken);
+
 router
-  .route('/:id')
-  .get(userController.getUser)
-  .patch(userController.updateUser)
-  .delete(userController.deleteUser);
+  .route('/push-tokens/:token')
+  .delete(authController.protect, notificationController.deletePushToken);
 
 module.exports = router;
