@@ -6,16 +6,27 @@ const { CronJob } = require('cron');
 dotenv.config({ path: './config.env' });
 
 process.on('uncaughtException', (err) => {
-  console.log('UNCAUGHT EXCEPTION! 💥 Shutting down the server...');
+  console.log('UNCAUGHT EXCEPTION! Shutting down the server...');
   console.log(err.name, err.message);
   process.exit(1);
 });
 
 const app = require('./app');
 
+/*
+// CONNECT TO DATABASE
+const DB = process.env.DATABASE.replace(
+  '<PASSWORD>',
+  process.env.DATABASE_PASSWORD
+);
+mongoose.connect(DB).then(() => {
+  console.log('** DB connection successful **');
+});
+*/
+
 // CONNECT TO LOCAL DATABASE
 mongoose.connect(process.env.DATABASE_LOCAL).then(() => {
-  console.log('✅ DB connection successful');
+  console.log('** DB connection successful **');
 });
 
 CronJob.from({

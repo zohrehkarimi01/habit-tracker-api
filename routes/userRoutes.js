@@ -5,21 +5,24 @@ const notificationController = require('../controllers/notificationController');
 
 const router = express.Router();
 
+/* auth routes */
+
 router.route('/signup').post(authController.signup);
 router.route('/login').post(authController.login);
 router.route('/forgot-password').post(authController.forgotPassword);
 router.route('/reset-password/:token').patch(authController.resetPassword);
 
-router
-  .route('/update-my-password')
-  .patch(authController.protect, authController.updatePassword);
+/* user specific routes */
 
 router
-  .route('/update-me')
-  .patch(authController.protect, userController.updateMe);
-router
-  .route('/delete-me')
+  .route('/me')
+  .get(authController.protect, userController.getMe)
+  .patch(authController.protect, userController.updateMe)
   .delete(authController.protect, userController.deleteMe);
+
+router
+  .route('/me/update-password')
+  .patch(authController.protect, authController.updatePassword);
 
 /* notification (push token) routes */
 

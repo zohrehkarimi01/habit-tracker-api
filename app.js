@@ -22,10 +22,12 @@ app.use(morgan('dev'));
 // Setting security HTTP headers
 app.use(helmet());
 
+// app.set('trust proxy', 'loopback, 123.123.123.123')
+
 // Limit requests from same IP
 const limiter = rateLimit({
-  max: 1000,
-  windowMs: 60 * 60 * 1000, // 60 minutes
+  max: 200,
+  windowMs: 60 * 1000, // 60 minutes
   message: 'Too many requests from this IP. Please try again in an hour!',
 });
 app.use('/api', limiter);
