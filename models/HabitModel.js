@@ -186,7 +186,9 @@ habitSchema.methods.shouldSendReminder = async function () {
   }
   // check habit is already done
   const dailyGoal = this.goalNumber || 1;
+  const habitId = this._id;
   const successLog = await Log.findOne({
+    habitId,
     date: todayStr,
     value: { $gte: dailyGoal },
   });
@@ -216,7 +218,6 @@ habitSchema.methods.scheduleHabitReminder = async function () {
   if (!this.reminder) return;
   const { _id: habitId } = this;
   const { _id: reminderId, hour, minute } = this.reminder;
-  console.log('reminder to schedule:', this.reminder);
   if (!reminderId) return;
   const timeDiff = getTimeDifference(hour, minute);
   console.log(`seconds till notification: ${timeDiff / 1000}`);
@@ -233,8 +234,6 @@ habitSchema.methods.scheduleHabitReminder = async function () {
           return;
         }
         if (!reminderId.equals(habit.reminder?._id)) {
-          console.log('reminderId:', reminderId);
-          console.log('habit.reminder?._id:', habit.reminder?._id);
           console.log('reminder has changed!');
           return;
         }
@@ -258,7 +257,6 @@ habitSchema.methods.scheduleHabitReminder = async function () {
           ({ calendar, expires }) =>
             shouldRemindUser[calendar] && expires.getTime() > time
         );
-        console.log('filteredTokens:', filteredPushTokens);
         // send notifications
         if (filteredPushTokens.length) {
           console.log('sending notification in progress');

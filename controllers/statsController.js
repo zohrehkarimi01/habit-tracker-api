@@ -119,10 +119,10 @@ const calculateDailySuccessStats = async (habit, userDate) => {
       streak: 0,
       bestStreak: 0,
       success: 0,
-      fail,
-      pending,
-      total,
-      habitScore,
+      fail: 0,
+      pending: 0,
+      total: 0,
+      habitScore: 0,
     };
   }
 
