@@ -393,12 +393,17 @@ exports.getHabitStats = catchAsync(async (req, res, next) => {
 
   const habit = await Habit.findById(habitId);
   if (!habit) {
-    return next(new AppError('Habit not found', 404));
+    return next(new AppError('habit_not_found', 404));
   }
+  if (!habit.userId.equals(req.user._id))
+    return next(new AppError('no_permission_habit_access', 403));
 
   // check userDate is a valid date in format of YYYY-MM-DD
   if (userDate && !isValidDate(userDate)) {
-    return next(new AppError('userDate is not a valid date', 400));
+    return next(new AppError('invalid_date', 400));
+  }
+  if (calendarType !== 'persian' && calendarType !== 'gregorian') {
+    return next(new AppError('invalid_calendar', 400));
   }
 
   let stats = await calculateTimesCompleted(habit, calendarType, userDate);

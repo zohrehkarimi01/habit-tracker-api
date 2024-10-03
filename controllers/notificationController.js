@@ -31,7 +31,7 @@ exports.registerPushToken = catchAsync(async (req, res, next) => {
   await user.save();
   res.status(201).json({
     status: 'success',
-    message: 'Push token added successfully',
+    message: res.__('push_token_added'),
   });
 });
 
@@ -50,13 +50,13 @@ exports.deletePushToken = catchAsync(async (req, res, next) => {
 
       return res.status(200).json({
         status: 'success',
-        message: 'Push token deleted successfully.',
+        message: res.__('push_token_deleted'),
       });
     }
   }
 
   res.status(200).json({
     status: 'success',
-    message: 'Token not found, nothing to delete.',
+    message: res.__('token_not_found'),
   });
 });

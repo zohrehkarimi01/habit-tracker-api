@@ -17,12 +17,10 @@ exports.createHabit = catchAsync(async (req, res, next) => {
 exports.getHabit = catchAsync(async (req, res, next) => {
   const habit = await Habit.findById(req.params.id);
   // check habit exists
-  if (!habit) return next(new AppError('No habit was found with this id', 404));
+  if (!habit) return next(new AppError('habit_not_found', 404));
   // check noraml user only has access to her own habit
   if (!habit.userId.equals(req.user._id))
-    return next(
-      new AppError("You don't have permission to access this habit", 403)
-    );
+    return next(new AppError('no_permission_habit_access', 403));
   // send response
   res.status(200).json({
     status: 'success',
@@ -90,12 +88,10 @@ exports.getTimesCompletedPerPeriod = catchAsync(async (req, res, next) => {
 exports.updateHabit = catchAsync(async (req, res, next) => {
   const habit = await Habit.findById(req.params.id);
   // check habit exists
-  if (!habit) return next(new AppError('No habit was found with this id', 404));
+  if (!habit) return next(new AppError('habit_not_found', 404));
   // check user only has access to her own habits
   if (!habit.userId.equals(req.user._id))
-    return next(
-      new AppError("You don't have permission to update this habit", 403)
-    );
+    return next(new AppError('no_permission_habit_update', 403));
   for (field in req.body) {
     if (req.body[field] === null) habit[field] = undefined;
     else habit[field] = req.body[field];
@@ -114,13 +110,11 @@ exports.deleteHabit = catchAsync(async (req, res, next) => {
   const habit = await Habit.findById(req.params.id);
   // check habit exists
   if (!habit) {
-    return next(new AppError('No habit was found with this id', 404));
+    return next(new AppError('habit_not_found', 404));
   }
   // check user only has access to her own habits
   if (!habit.userId.equals(req.user._id))
-    return next(
-      new AppError("You don't have permission to delete this habit", 403)
-    );
+    return next(new AppError('no_permission_habit_delete', 403));
 
   // delete habit
   await habit.deleteOne();

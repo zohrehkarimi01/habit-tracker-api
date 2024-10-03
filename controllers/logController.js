@@ -31,13 +31,11 @@ exports.createLog = catchAsync(async (req, res, next) => {
 exports.getLog = catchAsync(async (req, res, next) => {
   const log = await Log.findById(req.params.id);
   // check habit exists
-  if (!log) return next(new AppError('No log was found with this id', 404));
+  if (!log) return next(new AppError('log_not_found', 404));
   // check noraml user only has access to her own habit
   const { userId } = await Habit.findById(log.habitId).select('userId');
   if (!userId.equals(req.user._id))
-    return next(
-      new AppError("You don't have permission to access this log", 403)
-    );
+    return next(new AppError('no_permission_log_access', 403));
   // send response
   res.status(200).json({
     status: 'success',
@@ -70,11 +68,15 @@ exports.getLogs = catchAsync(async (req, res, next) => {
 
 exports.updateLog = catchAsync(async (req, res, next) => {
   const { value } = req.body;
-  if (!value) return next(new AppError('Include a value to update log', 400));
+  if (!value) return next(new AppError('log_update_value_required', 400));
   // find log
   const log = await Log.findById(req.params.id).select('+datePersian');
   // check log exists
-  if (!log) return next(new AppError('No log was found with this id', 404));
+  if (!log) return next(new AppError('log_not_found', 404));
+  // check noraml user only has access to her own habit
+  const { userId } = await Habit.findById(log.habitId).select('userId');
+  if (!userId.equals(req.user._id))
+    return next(new AppError('no_permission_log_update', 403));
   log.value = value;
   await log.save({ userId: req.user._id });
   // send response
@@ -90,14 +92,12 @@ exports.deleteLog = catchAsync(async (req, res, next) => {
   const log = await Log.findById(req.params.id);
   // check log exists
   if (!log) {
-    return next(new AppError('No log was found with this id', 404));
+    return next(new AppError('log_not_found', 404));
   }
   // check user only has access to her own logs
   const { userId } = await Habit.findById(log.habitId).select('userId');
   if (!userId.equals(req.user._id))
-    return next(
-      new AppError("You don't have permission to delete this log", 403)
-    );
+    return next(new AppError('no_permission_log_delete', 403));
   // delete log
   await log.deleteOne();
   // send response
@@ -113,14 +113,12 @@ exports.deleteLogByQuery = catchAsync(async (req, res, next) => {
   const log = await Log.findOne({ habitId, date });
   // check log exists
   if (!log) {
-    return next(new AppError('No log was found with this info', 404));
+    return next(new AppError('log_not_found_with_info', 404));
   }
   // check user only has access to her own logs
   const { userId } = await Habit.findById(log.habitId).select('userId');
   if (!userId.equals(req.user._id))
-    return next(
-      new AppError("You don't have permission to delete this log", 403)
-    );
+    return next(new AppError('no_permission_log_delete', 403));
   // delete log
   await log.deleteOne();
   // send response

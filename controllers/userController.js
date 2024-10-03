@@ -27,21 +27,11 @@ exports.getMe = catchAsync(async (req, res, next) => {
 exports.updateMe = catchAsync(async (req, res, next) => {
   // 1) Create error if user POSTed password data
   if (req.body.password || req.body.passwordConfirm) {
-    return next(
-      new AppError(
-        'This route is not for updating password. Please use /me/update-password.',
-        400
-      )
-    );
+    return next(new AppError('invalid_password_update_route', 400));
   }
 
   if (req.body.email) {
-    return next(
-      new AppError(
-        "For authentication reasons, you can't change your email!",
-        400
-      )
-    );
+    return next(new AppError('email_change_not_allowed', 400));
   }
 
   // 2) filter the update fields
@@ -63,8 +53,6 @@ exports.updateMe = catchAsync(async (req, res, next) => {
 
 exports.deleteMe = catchAsync(async (req, res, next) => {
   const user = await User.findById(req.user.id);
-
-  if (!user) return next(new AppError('User not found', 404));
 
   await user.deleteOne();
 

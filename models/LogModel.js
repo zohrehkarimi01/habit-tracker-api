@@ -42,46 +42,30 @@ logSchema.pre('save', async function (next, options) {
   // fetch habit document
   const habit = await Habit.findById(this.habitId);
   // 1) check habitId is valid
-  if (!habit) return next(new AppError('HabitId is not valid', 404));
+  if (!habit) return next(new AppError('invalid_habit_id', 404));
 
   // 2) check habit belongs to current user
   if (!habit.userId.equals(options.userId))
-    return next(
-      new AppError("You don't have permission to save logs for this habit", 403)
-    );
+    return next(new AppError('no_permission_log_save', 403));
 
   // 3) check log date is between startDate and endDate
   if (compareDateStrings(this.date, habit.startDate) === -1)
     // date is smaller than startDate
-    return next(
-      new AppError("You can not log for dates before habit's startDate", 400)
-    );
+    return next(new AppError('log_before_start_date', 400));
   if (habit.endDate && compareDateStrings(this.date, habit.endDate) === 1)
     // date is bigger than endDate
-    return next(
-      new AppError("You can not log for dates after habit's endDate", 400)
-    );
+    return next(new AppError('log_after_end_date', 400));
 
   // 4) check log date is valid for habits with specific-days-of-week frequency
   if (
     habit.frequency === 'specific-days-of-week' &&
     !habit.daysOfWeek.includes(getDayOfWeek(this.date))
   )
-    return next(
-      new AppError(
-        "You can not log for days other than habit's specified days of week",
-        400
-      )
-    );
+    return next(new AppError('log_on_invalid_day', 400));
 
   // 5) if habit is boolean, check value is 0 or 1
   if (habit.type === 'boolean' && this.value > 1)
-    return next(
-      new AppError(
-        'Acceptable log values for boolean habits are either 0 or 1',
-        400
-      )
-    );
+    return next(new AppError('invalid_log_value_boolean', 400));
   next();
 });
 

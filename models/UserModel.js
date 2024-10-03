@@ -145,7 +145,7 @@ userSchema.methods.createVerificationCode = function () {
 userSchema.pre('save', function (next) {
   // if password is modified, check that passwordConfirm exists
   if (this.isModified('password') && !this.passwordConfirm) {
-    return next(new AppError('Please confirm your password', 400));
+    return next(new AppError('confirm_password_required', 400));
   }
   next();
 });
