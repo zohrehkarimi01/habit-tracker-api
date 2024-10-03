@@ -123,11 +123,13 @@ const habitSchema = new mongoose.Schema({
     type: {
       hour: {
         type: Number,
+        required: [true, "Please enter reminder hour"],
         min: [0, 'Entered value for reminder hour is not valid'],
         max: [23, 'Entered value for reminder hour is not valid'],
       },
       minute: {
         type: Number,
+        required: [true, "Please enter reminder minute"],
         min: [0, 'Entered value for reminder minute is not valid'],
         max: [59, 'Entered value for reminder minute is not valid'],
       },
@@ -252,10 +254,12 @@ habitSchema.methods.scheduleHabitReminder = async function () {
           console.log('Habit should not send reminder');
           return;
         }
-        const time = new Date().getTime();
+        const time = Date.now();
         const filteredPushTokens = pushTokens.filter(
-          ({ calendar, expires }) =>
-            shouldRemindUser[calendar] && expires.getTime() > time
+          ({ calendar, expires, issuedAt }) =>
+            shouldRemindUser[calendar] &&
+            expires.getTime() > time &&
+            !user.changedPasswordAfterDate(issuedAt)
         );
         // send notifications
         if (filteredPushTokens.length) {
@@ -266,13 +270,17 @@ habitSchema.methods.scheduleHabitReminder = async function () {
           );
           // exclude expired and invalid tokens
           user.pushTokens = user.pushTokens.filter(
-            ({ token, expires }) =>
-              expires.getTime() > time && !invalidTokens.has(token)
+            ({ token, expires, issuedAt }) =>
+              expires.getTime() > time &&
+              !user.changedPasswordAfterDate(issuedAt) &&
+              !invalidTokens.has(token)
           );
         } else {
           // exclude expired tokens
           user.pushTokens = user.pushTokens.filter(
-            ({ expires }) => expires.getTime() > time
+            ({ expires, issuedAt }) =>
+              expires.getTime() > time &&
+              !user.changedPasswordAfterDate(issuedAt)
           );
         }
         await user.save();

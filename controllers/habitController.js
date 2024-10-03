@@ -122,8 +122,6 @@ exports.deleteHabit = catchAsync(async (req, res, next) => {
       new AppError("You don't have permission to delete this habit", 403)
     );
 
-  // TODO: DELETE HABIT LOGS
-
   // delete habit
   await habit.deleteOne();
   // send response

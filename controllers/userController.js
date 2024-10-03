@@ -11,10 +11,15 @@ const filterObj = (obj, ...allowedFields) => {
 };
 
 exports.getMe = catchAsync(async (req, res, next) => {
+  const { name, email } = req.user;
+
   res.status(200).json({
     stauts: 'success',
     data: {
-      user: req.user,
+      user: {
+        name,
+        email,
+      },
     },
   });
 });
@@ -24,13 +29,23 @@ exports.updateMe = catchAsync(async (req, res, next) => {
   if (req.body.password || req.body.passwordConfirm) {
     return next(
       new AppError(
-        'This route is not for updating password. Please use /updateMyPassword.'
+        'This route is not for updating password. Please use /me/update-password.',
+        400
+      )
+    );
+  }
+
+  if (req.body.email) {
+    return next(
+      new AppError(
+        "For authentication reasons, you can't change your email!",
+        400
       )
     );
   }
 
   // 2) filter the update fields
-  const filteredBody = filterObj(req.body, 'name', 'email');
+  const filteredBody = filterObj(req.body, 'name');
 
   // 3) Update user document
   const updatedUser = await User.findByIdAndUpdate(req.user._id, filteredBody, {
@@ -41,13 +56,17 @@ exports.updateMe = catchAsync(async (req, res, next) => {
   res.status(200).json({
     stauts: 'success',
     data: {
-      user: updatedUser,
+      user: { name: updatedUser.name, email: updatedUser.email },
     },
   });
 });
 
 exports.deleteMe = catchAsync(async (req, res, next) => {
-  await User.findByIdAndUpdate(req.user.id, { active: false });
+  const user = await User.findById(req.user.id);
+
+  if (!user) return next(new AppError('User not found', 404));
+
+  await user.deleteOne();
 
   res.status(204).json({
     stauts: 'success',

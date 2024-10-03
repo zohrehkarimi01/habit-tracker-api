@@ -31,7 +31,6 @@ const userSchema = new mongoose.Schema({
       },
       message: 'Passwords should be the same!',
     },
-    select: false,
   },
   pushTokens: {
     type: [
@@ -47,7 +46,6 @@ const userSchema = new mongoose.Schema({
             message: 'Please enter a valid Expo push token!',
           },
         },
-        expires: Date,
         lang: {
           type: String,
           required: [true, 'Please include your preferred language'],
@@ -58,17 +56,18 @@ const userSchema = new mongoose.Schema({
           required: [true, 'Please include your preferred calendar'],
           enum: ['gregorian', 'persian'],
         },
+        issuedAt: Date,
+        expires: Date,
       },
     ],
     select: false,
   },
   changedPasswordAt: Date,
-  passwordResetToken: String,
-  passwordResetExpires: Date,
+  codeViaEmail: String,
+  codeViaEmailExpires: Date,
   active: {
     type: Boolean,
-    default: true,
-    select: false,
+    default: false,
   },
 });
 /*************** METHODS ***************/
@@ -77,13 +76,25 @@ const userSchema = new mongoose.Schema({
   Method to compare if the password has changed after a 
   specific time (The time that JWT was issued)
 */
-userSchema.methods.changedPasswordAfter = function (JWTTime) {
+userSchema.methods.changedPasswordAfterTime = function (JWTTime) {
   if (this.changedPasswordAt) {
     const changedTimeStamp = parseInt(
       this.changedPasswordAt.getTime() / 1000,
       10
     );
     return JWTTime < changedTimeStamp;
+  }
+  // False means Not changed
+  return false;
+};
+
+/* 
+  Method to compare if the password has changed after a 
+  specific date
+*/
+userSchema.methods.changedPasswordAfterDate = function (date) {
+  if (this.changedPasswordAt) {
+    return date.getTime() < this.changedPasswordAt.getTime();
   }
   // False means Not changed
   return false;
@@ -112,6 +123,18 @@ userSchema.methods.createPasswordResetToken = function () {
   this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
 
   return resetToken;
+};
+
+/* 
+  Method to create a verification code to send to email
+*/
+userSchema.methods.createVerificationCode = function () {
+  const code = Math.floor(10000 + Math.random() * 90000);
+  this.codeViaEmail = code;
+  // verification code expiration date
+  this.codeViaEmailExpires =
+    Date.now() + process.env.VERIFICATION_CODE_EXPIRES_IN * 60 * 1000;
+  return code;
 };
 
 /*************** MIDDLEWARES ***************/
@@ -150,10 +173,13 @@ userSchema.pre('save', function (next) {
   next();
 });
 
-/* eliminate inactive users from the list of users in query */
-userSchema.pre(/^find/, function (next) {
-  // "this" keyword points to the current query
-  this.find({ active: { $ne: false } });
+// If habit is deleted, delete all its logs
+userSchema.pre('deleteOne', { document: true }, async function (next) {
+  const Habit = mongoose.model('Habit');
+  const habits = await Habit.find({ userId: this._id });
+  for (let habit of habits) {
+    await habit.deleteOne();
+  }
   next();
 });
 

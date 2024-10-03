@@ -15,10 +15,17 @@ exports.registerPushToken = catchAsync(async (req, res, next) => {
     // Update the existing token
     existingToken.lang = lang;
     existingToken.calendar = calendar;
-    existingToken.expires = req.expires;
+    existingToken.issuedAt = new Date(req.iat * 1000);
+    existingToken.expires = new Date(req.exp * 1000);
   } else {
     // Add new token to the pushTokens array
-    user.pushTokens.push({ token, lang, calendar, expires: req.expires });
+    user.pushTokens.push({
+      token,
+      lang,
+      calendar,
+      issuedAt: new Date(req.iat * 1000),
+      expires: new Date(req.exp * 1000),
+    });
   }
 
   await user.save();
