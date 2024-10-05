@@ -151,7 +151,7 @@ function isHabitNumeric() {
 }
 
 function isAfterStartDate(endDate) {
-  return compareDateStrings(endDate, this.startDate) === 1;
+  return compareDateStrings(endDate, this.startDate) !== -1;
 }
 
 /*** METHODS ***/
